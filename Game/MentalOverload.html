@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<title>Mental Overload</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+:root{
+  --green:#6fbf8f;
+  --green-dark:#3a7f5f;
+  --soft:#f4fbf7;
+  --soft-2:#ecf7f1;
+  --text:#2f4f44;
+}
+
+body{
+  margin:0;
+  font-family:"Segoe UI",sans-serif;
+  background:linear-gradient(#f7fcf9,#eef7f2);
+  color:var(--text);
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  min-height:100vh;
+}
+
+.game{
+  width:100%;
+  max-width:420px;
+  background:#ffffff;
+  border-radius:24px;
+  padding:18px;
+  box-shadow:0 20px 45px rgba(0,0,0,.1);
+}
+
+h2{
+  text-align:center;
+  color:var(--green-dark);
+  margin:6px 0 12px;
+}
+
+/* BUTTONS */
+.menu button,
+.controls button{
+  width:100%;
+  padding:14px;
+  margin:8px 0;
+  border:none;
+  border-radius:16px;
+  font-weight:600;
+  background:linear-gradient(135deg,var(--green),#8fd3b3);
+  color:white;
+  cursor:pointer;
+  transition:.2s;
+}
+.menu button:hover,
+.controls button:hover{
+  transform:translateY(-1px);
+  box-shadow:0 6px 18px rgba(111,191,143,.35);
+}
+
+.top{
+  display:flex;
+  justify-content:space-between;
+  background:var(--soft-2);
+  padding:10px 14px;
+  border-radius:14px;
+  font-size:14px;
+  font-weight:600;
+  color:var(--green-dark);
+}
+
+#arena{
+  position:relative;
+  height:360px;
+  margin:14px 0;
+  background:var(--soft);
+  border-radius:18px;
+  overflow:hidden;
+}
+
+/* THOUGHT */
+.thought{
+  position:absolute;
+  padding:8px 16px;
+  border-radius:20px;
+  background:var(--green);
+  color:white;
+  font-weight:600;
+  animation:fall linear forwards;
+  box-shadow:0 6px 16px rgba(0,0,0,.15);
+}
+
+/* DIALOG */
+.dialog{
+  position:absolute;
+  bottom:14px;
+  left:14px;
+  right:14px;
+  background:#ffffff;
+  border-left:6px solid var(--green);
+  padding:14px;
+  border-radius:16px;
+  font-size:14px;
+  box-shadow:0 10px 30px rgba(0,0,0,.18);
+}
+
+@keyframes fall{
+  from{top:-40px}
+  to{top:360px}
+}
+
+.controls{
+  display:grid;
+  grid-template-columns:repeat(2,1fr);
+  gap:12px;
+}
+
+/* OVERLAY */
+#overlay{
+  position:absolute;
+  inset:0;
+  background:rgba(255,255,255,.96);
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  text-align:center;
+  border-radius:18px;
+}
+#overlay h2{
+  color:var(--green-dark);
+}
+#overlay button{
+  margin-top:12px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="game">
+  <h2>Mental Overload</h2>
+
+  <!-- MENU -->
+  <div id="menu" class="menu">
+    <button onclick="startArcade()">Arcade Mode</button>
+    <button onclick="startStory()">Story Mode</button>
+  </div>
+
+  <!-- GAME UI -->
+  <div id="ui" style="display:none">
+    <div class="top">
+      <div>⭐ <span id="score">0</span></div>
+      <div>Lv <span id="level">1</span></div>
+    </div>
+
+    <div id="arena"></div>
+
+    <div class="controls">
+      <button onclick="action('napas')">Napas</button>
+      <button onclick="action('istirahat')">Istirahat</button>
+      <button onclick="action('curhat')">Curhat</button>
+      <button onclick="action('distraksi')">Distraksi</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const arena = document.getElementById("arena");
+const scoreEl = document.getElementById("score");
+const levelEl = document.getElementById("level");
+
+let mode="arcade";
+let score=0, level=1;
+let gameOver=false, paused=false;
+let speed=5200;
+let interval;
+
+/* EMOSI */
+const emotions=[
+ {name:"Cemas",correct:"napas"},
+ {name:"Stres",correct:"istirahat"},
+ {name:"Sedih",correct:"curhat"},
+ {name:"Overthinking",correct:"distraksi"}
+];
+
+/* STORY */
+const story=[
+ {
+  dialog:"Teman: 'Capek ya? Pelan-pelan juga gapapa kok.'",
+  emotions:[emotions[0],emotions[3]]
+ },
+ {
+  dialog:"Dirimu: 'Aku boleh istirahat sebentar.'",
+  emotions:[emotions[1],emotions[2]]
+ }
+];
+
+function startArcade(){
+  mode="arcade";
+  startGame();
+}
+
+function startStory(){
+  mode="story";
+  level=1;
+  startGame();
+  showDialog(story[0].dialog);
+}
+
+function startGame(){
+  document.getElementById("menu").style.display="none";
+  document.getElementById("ui").style.display="block";
+  interval=setInterval(spawnThought,1200);
+}
+
+function spawnThought(){
+  if(gameOver||paused) return;
+
+  const list = mode==="story" ? story[level-1].emotions : emotions;
+  const e = list[Math.floor(Math.random()*list.length)];
+
+  const d=document.createElement("div");
+  d.className="thought";
+  d.innerText=e.name;
+  d.dataset.fix=e.correct;
+  d.style.left=Math.random()*70+"%";
+  d.style.animationDuration=speed+"ms";
+
+  d.onanimationend=()=>{
+    if(!d.classList.contains("clear")) endGame(false);
+    d.remove();
+  };
+
+  arena.appendChild(d);
+}
+
+function action(type){
+  if(gameOver||paused) return;
+
+  const t=[...arena.children].find(x=>x.dataset?.fix===type);
+  if(!t) return;
+
+  t.classList.add("clear");
+  t.remove();
+
+  score+=10;
+  scoreEl.innerText=score;
+
+  if(mode==="story" && score>=level*50){
+    level++;
+    levelEl.innerText=level;
+    if(level>story.length){
+      endGame(true);
+    }else{
+      showDialog(story[level-1].dialog);
+    }
+  }
+}
+
+function showDialog(text){
+  paused=true;
+  arena.innerHTML=`
+    <div class="dialog">
+      ${text}<br><br>
+      <button onclick="resume()">Lanjut</button>
+    </div>`;
+}
+
+function resume(){
+  paused=false;
+  arena.innerHTML="";
+}
+
+function endGame(good){
+  gameOver=true;
+  clearInterval(interval);
+  arena.innerHTML=`
+    <div id="overlay">
+      <div>
+        <h2>${good?"🌱 Ending Baik":"Ending Reflektif"}</h2>
+        <p>
+          ${good
+            ?"Kamu belajar memahami emosimu."
+            :"Tidak apa-apa. Semua orang belajar dengan waktunya."}
+        </p>
+        <button onclick="location.reload()">Kembali ke Menu</button>
+      </div>
+    </div>`;
+}
+</script>
+
+</body>
+</html>

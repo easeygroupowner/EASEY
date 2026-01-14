@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Belanja Titipan Mama</title>
+
+<style>
+body{
+  margin:0;
+  font-family:"Segoe UI",sans-serif;
+  background:#f6f8fb;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  min-height:100vh;
+}
+
+.game{
+  background:#fff;
+  width:95%;
+  max-width:420px;
+  padding:20px;
+  border-radius:18px;
+  box-shadow:0 10px 30px rgba(0,0,0,.1);
+  text-align:center;
+}
+
+h1{margin:10px 0;}
+.badge{
+  background:#e3f2fd;
+  display:inline-block;
+  padding:6px 14px;
+  border-radius:20px;
+  font-size:14px;
+}
+
+.list,.market,.cart{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:10px;
+  margin:15px 0;
+}
+
+.item{
+  background:#f1f5f9;
+  padding:14px;
+  border-radius:14px;
+  font-size:24px;
+  cursor:pointer;
+  transition:.2s;
+  user-select:none;
+}
+
+.item:hover{transform:scale(1.08);}
+.cart .item{background:#e8f5e9;}
+
+button{
+  width:100%;
+  padding:12px;
+  border:none;
+  border-radius:14px;
+  background:#4caf50;
+  color:#fff;
+  font-size:16px;
+  cursor:pointer;
+}
+
+button.secondary{background:#90caf9;}
+.hidden{display:none;}
+.timer{color:#ff5252;font-weight:bold}
+
+/* ANIMASI TERBANG */
+.fly{
+  position:fixed;
+  font-size:26px;
+  z-index:999;
+  animation:flyToCart .6s ease forwards;
+}
+
+@keyframes flyToCart{
+  to{
+    transform:translate(var(--x),var(--y)) scale(.2);
+    opacity:0;
+  }
+}
+</style>
+</head>
+
+<body>
+<div class="game">
+
+<!-- START SCREEN -->
+<div id="startScreen">
+  <h1>Apakah kamu siap?!</h1>
+  <p>Ingat pesanan mama dan jangan sampai salah yaa</p>
+  <button onclick="startGame()">Mulai Belanja</button>
+</div>
+
+<!-- GAME HEADER -->
+<div id="gameHeader" class="hidden">
+  <h1>🛒 Belanja Mama</h1>
+  <div class="badge">Level <span id="level">1</span></div>
+</div>
+
+<!-- PESANAN -->
+<div id="orderScreen" class="hidden">
+  <p>Hafalin pesanan mama!</p>
+  <p class="timer">⏱️ <span id="time">5</span> detik</p>
+  <div class="list" id="orderList"></div>
+</div>
+
+<!-- MARKET -->
+<div id="marketScreen" class="hidden">
+  <p>Pilih barangnya</p>
+  <div class="market" id="market"></div>
+
+  <h3>Keranjang</h3>
+  <div class="cart" id="cart"></div>
+
+  <button onclick="checkOrder()">🧾 Ke Kasir</button>
+</div>
+
+<!-- RESULT -->
+<div id="resultScreen" class="hidden">
+  <h2 id="resultText"></h2>
+  <button class="secondary" onclick="nextLevel()">Lanjut</button>
+</div>
+
+</div>
+
+<script>
+const items=["🍎","🍌","🍊","🍇","🍓","🥭","🥕","🥦","🌽","🍆","🥬","🧄"];
+let level=1, order=[], cart=[];
+
+const orderList=document.getElementById("orderList");
+const market=document.getElementById("market");
+const cartBox=document.getElementById("cart");
+
+function startGame(){
+  document.getElementById("startScreen").classList.add("hidden");
+  document.getElementById("gameHeader").classList.remove("hidden");
+  document.getElementById("orderScreen").classList.remove("hidden");
+  level=1;
+  startLevel();
+}
+
+function startLevel(){
+  document.getElementById("level").textContent=level;
+  order=[]; cart=[];
+  orderList.innerHTML="";
+  cartBox.innerHTML="";
+  market.innerHTML="";
+
+  const total=level+2;
+
+  while(order.length<total){
+    const r=items[Math.floor(Math.random()*items.length)];
+    if(!order.includes(r)) order.push(r);
+  }
+
+  order.forEach(i=>{
+    const d=document.createElement("div");
+    d.className="item";
+    d.textContent=i;
+    orderList.appendChild(d);
+  });
+
+  let t=5;
+  document.getElementById("time").textContent=t;
+
+  const timer=setInterval(()=>{
+    t--;
+    document.getElementById("time").textContent=t;
+    if(t===0){
+      clearInterval(timer);
+      showMarket();
+    }
+  },1000);
+}
+
+function showMarket(){
+  document.getElementById("orderScreen").classList.add("hidden");
+  document.getElementById("marketScreen").classList.remove("hidden");
+
+  items.forEach(i=>{
+    const d=document.createElement("div");
+    d.className="item";
+    d.textContent=i;
+    d.onclick=(e)=>addToCart(i,e);
+    market.appendChild(d);
+  });
+}
+
+function addToCart(i,e){
+  if(cart.includes(i)) return;
+  cart.push(i);
+
+  const rect=e.target.getBoundingClientRect();
+  const cartRect=cartBox.getBoundingClientRect();
+
+  const fly=document.createElement("div");
+  fly.textContent=i;
+  fly.className="fly";
+  fly.style.left=rect.left+"px";
+  fly.style.top=rect.top+"px";
+  fly.style.setProperty("--x",(cartRect.left-rect.left)+"px");
+  fly.style.setProperty("--y",(cartRect.top-rect.top)+"px");
+
+  document.body.appendChild(fly);
+  setTimeout(()=>fly.remove(),600);
+
+  const d=document.createElement("div");
+  d.className="item";
+  d.textContent=i;
+  cartBox.appendChild(d);
+}
+
+function checkOrder(){
+  const correct=
+    cart.length===order.length &&
+    cart.every(i=>order.includes(i));
+
+  document.getElementById("marketScreen").classList.add("hidden");
+  document.getElementById("resultScreen").classList.remove("hidden");
+
+  if(correct){
+    document.getElementById("resultText").textContent="✅ Benar! Mama bangga!";
+    level++;
+  }else{
+    document.getElementById("resultText").textContent="❌ Salah! Game Over";
+    level=1;
+  }
+}
+
+function nextLevel(){
+  document.getElementById("resultScreen").classList.add("hidden");
+  document.getElementById("orderScreen").classList.remove("hidden");
+  startLevel();
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<title>Peaceful Pop</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+<style>
+/* ================== GLOBAL ================== */
+body{
+  font-family:"Segoe UI",sans-serif;
+  background:radial-gradient(circle,#e8f5e9,#ffffff);
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  min-height:100vh;
+  margin:0;
+  color:#1b4332;
+}
+
+.game-wrap{
+  width:100%;
+  max-width:440px;
+  background:#ffffff;
+  border-radius:22px;
+  box-shadow:0 10px 50px rgba(76,175,80,.25);
+  overflow:hidden;
+}
+
+.header{
+  padding:20px;
+  text-align:center;
+  border-bottom:1px solid #e0f2e9;
+}
+
+.header h2{
+  margin:0;
+}
+
+/* ================== START SCREEN ================== */
+.start-screen{
+  text-align:center;
+  padding:25px 22px 32px;
+}
+
+.title{
+  font-size:26px;
+  margin-bottom:8px;
+}
+
+.subtitle{
+  font-size:14px;
+  opacity:.7;
+}
+
+/* ================== BUTTON ================== */
+button{
+  padding:12px 20px;
+  border:none;
+  border-radius:12px;
+  background:#4CAF50;
+  color:#fff;
+  cursor:pointer;
+  font-size:15px;
+  margin-top:18px;
+  box-shadow:0 8px 20px rgba(76,175,80,.25);
+}
+
+button:hover{
+  opacity:.93;
+}
+
+/* ================== GAME AREA ================== */
+.game{
+  display:none;
+  padding:20px;
+}
+
+.info{
+  display:flex;
+  justify-content:space-between;
+  font-size:13px;
+  margin-bottom:8px;
+}
+
+#area{
+  position:relative;
+  height:330px;
+  background:#f1f8f4;
+  border-radius:16px;
+  overflow:hidden;
+  margin:10px 0;
+}
+
+/* ================== BALLOONS ================== */
+.balloon{
+  position:absolute;
+  cursor:pointer;
+  animation:float linear infinite;
+}
+
+.good{
+  width:48px;
+  height:58px;
+  background:#a5d6a7;
+  border-radius:50% 50% 45% 45%;
+}
+
+.bad{
+  width:48px;
+  height:58px;
+  background:#cfd8dc;
+  border-radius:50% 50% 45% 45%;
+}
+
+.bomb{
+  width:46px;
+  height:46px;
+  background:#2e7d32;
+  border-radius:50%;
+  box-shadow:0 0 12px #81c784;
+}
+
+.boss{
+  width:90px;
+  height:110px;
+  background:#388e3c;
+  border-radius:50%;
+  box-shadow:0 0 25px #66bb6a;
+}
+
+@keyframes float{
+  from{bottom:-120px}
+  to{bottom:380px}
+}
+
+/* ================== QUOTE ================== */
+#quote{
+  min-height:46px;
+  background:#e8f5e9;
+  border-radius:12px;
+  padding:10px;
+  font-size:14px;
+  text-align:center;
+  white-space:pre-line;
+}
+
+/* ================== CONFETTI ================== */
+.confetti{
+  position:absolute;
+  width:6px;
+  height:6px;
+  animation:fall .8s linear forwards;
+}
+
+@keyframes fall{
+  to{
+    transform:translateY(100px) rotate(360deg);
+    opacity:0;
+  }
+}
+
+/* ================== SHAKE ================== */
+.shake{
+  animation:shake .3s;
+}
+
+@keyframes shake{
+  0%{transform:translateX(0)}
+  25%{transform:translateX(-6px)}
+  50%{transform:translateX(6px)}
+  75%{transform:translateX(-6px)}
+  100%{transform:translateX(0)}
+}
+</style>
+</head>
+
+<body>
+
+<div class="game-wrap" id="box">
+
+  <div class="header">
+    <h2>Peaceful Pop</h2>
+  </div>
+
+  <!-- ============ START SCREEN ============ -->
+  <div class="start-screen" id="start">
+    <div class="title">Selamat Datang</div>
+    <div class="subtitle">
+      Pecahkan balon hijau, tetap tenang, dan nikmati ritmenya.
+    </div>
+
+    <button onclick="startGame()">Mulai Bermain</button>
+  </div>
+
+  <!-- ============ GAME ============ -->
+  <div class="game" id="game">
+
+    <div class="info">
+      <span>Level: <b id="lvl">1</b></span>
+      <span>Skor: <b id="scoreText">0</b></span>
+      <span><b id="life">3</b></span>
+    </div>
+
+    <div id="area"></div>
+
+    <div id="quote">Tarik napas… kamu aman</div>
+  </div>
+
+</div>
+
+<script>
+/* ================== ELEMENTS ================== */
+const area=document.getElementById("area");
+const quote=document.getElementById("quote");
+const lifeText=document.getElementById("life");
+const lvlText=document.getElementById("lvl");
+const scoreText=document.getElementById("scoreText");
+const box=document.getElementById("box");
+const startScreen=document.getElementById("start");
+const game=document.getElementById("game");
+
+/* ================== GAME DATA ================== */
+let life=3,level=1,score=0,spawnInterval,bossAlive=false;
+
+const quotes=[
+ "Tarik napas… kamu aman 🌿",
+ "Pelan-pelan saja 🤍",
+ "Kamu masih bertahan ✨",
+ "Istirahat juga bentuk kuat 💚"
+];
+
+/* ================== GAME FLOW ================== */
+function startGame(){
+  startScreen.style.display="none";
+  game.style.display="block";
+  restart();
+}
+
+function restart(){
+  clearInterval(spawnInterval);
+  area.innerHTML="";
+  life=3;
+  level=1;
+  score=0;
+  bossAlive=false;
+  updateUI();
+  quote.innerText="🌱 Permainan dimulai";
+  spawnInterval=setInterval(spawnBalloon,750);
+}
+
+/* ================== BALLOON SPAWN ================== */
+function spawnBalloon(){
+  if(area.children.length>10) return;
+
+  const b=document.createElement("div");
+  let type="good";
+
+  if(level>=4 && !bossAlive && Math.random()<0.12){
+    type="boss";
+    bossAlive=true;
+  }
+  else if(level>=3 && Math.random()<0.2){
+    type="bomb";
+  }
+  else if(level>=2 && Math.random()<0.3){
+    type="bad";
+  }
+
+  b.className="balloon "+type;
+  b.style.left=Math.random()*80+"%";
+  b.style.animationDuration=Math.max(2.2,4-level*0.4)+"s";
+
+  b.onclick=(e)=>{
+    e.stopPropagation();
+
+    if(type==="bomb"){
+      gameOver();
+      return;
+    }
+
+    if(type==="bad"){
+      loseLife();
+      b.remove();
+      return;
+    }
+
+    showConfetti(e);
+
+    /* SCORE = 10 per balon */
+    score += 10;
+
+    if(type==="boss"){
+      bossAlive=false;
+      level++;
+      lvlText.innerText=level;
+
+      /* bonus boss +5 → total 15 */
+      score += 5;
+
+      quote.innerText="🌳 Tantangan terlewati!\nLevel naik!";
+    }else{
+      quote.innerText=quotes[Math.floor(Math.random()*quotes.length)];
+    }
+
+    if(score%60===0 && type!=="boss"){
+      level++;
+      lvlText.innerText=level;
+    }
+
+    scoreText.innerText=score;
+    b.remove();
+  };
+
+  area.appendChild(b);
+}
+
+/* ================== GAME STATE ================== */
+function loseLife(){
+  life--;
+  updateUI();
+  shake();
+  if(life<=0) gameOver();
+}
+
+function gameOver(){
+  clearInterval(spawnInterval);
+  area.innerHTML="";
+  game.style.display="none";
+  startScreen.style.display="block";
+  quote.innerText="🤍";
+}
+
+function updateUI(){
+  lifeText.innerText=life;
+  lvlText.innerText=level;
+  scoreText.innerText=score;
+}
+
+/* ================== EFFECTS ================== */
+function shake(){
+  box.classList.add("shake");
+  setTimeout(()=>box.classList.remove("shake"),300);
+}
+
+function showConfetti(e){
+  const rect=area.getBoundingClientRect();
+
+  for(let i=0;i<14;i++){
+    const c=document.createElement("div");
+    c.className="confetti";
+    c.style.left=(e.clientX-rect.left)+"px";
+    c.style.top=(e.clientY-rect.top)+"px";
+    c.style.background=`hsl(${90+Math.random()*60},70%,60%)`;
+    area.appendChild(c);
+    setTimeout(()=>c.remove(),800);
+  }
+}
+</script>
+
+</body>
+</html>

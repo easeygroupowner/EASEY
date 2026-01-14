@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<title>Healthy Restaurant 3D Cinematic</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+body{
+  margin:0;
+  background:#fffde7;
+  font-family:Segoe UI,sans-serif;
+  overflow:hidden;
+}
+
+/* MENU */
+#menu{
+  position:fixed;
+  inset:0;
+  background:#fff9c4;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  align-items:center;
+  z-index:10;
+}
+#menu button{
+  padding:12px 30px;
+  border:none;
+  border-radius:25px;
+  font-size:16px;
+  background:#ffb74d;
+  color:white;
+  cursor:pointer;
+}
+
+/* HUD */
+#hud{
+  display:none;
+  position:fixed;
+  top:10px;
+  left:50%;
+  transform:translateX(-50%);
+  background:white;
+  padding:10px 25px;
+  border-radius:20px;
+  box-shadow:0 5px 20px rgba(0,0,0,.1);
+  font-size:16px;
+  z-index:5;
+}
+
+/* ENERGY BAR */
+#energyBar{
+  display:inline-block;
+  width:100px;
+  height:10px;
+  background:#eee;
+  border-radius:5px;
+  margin-left:10px;
+}
+#energyFill{
+  height:100%;
+  width:100%;
+  background:#81c784;
+  border-radius:5px;
+}
+
+/* JOYSTICK */
+#joystick{
+  position:fixed;
+  left:15px;
+  bottom:15px;
+  width:120px;
+  height:120px;
+  background:rgba(255,255,255,.3);
+  border-radius:50%;
+  display:none;
+  align-items:center;
+  justify-content:center;
+  z-index:5;
+}
+#stick{
+  width:55px;
+  height:55px;
+  background:#81c784;
+  border-radius:50%;
+  position:relative;
+}
+
+/* EDU POPUP */
+#eduPopup{
+  position:fixed;
+  bottom:10%;
+  left:50%;
+  transform:translateX(-50%);
+  background:white;
+  padding:15px 25px;
+  border-radius:20px;
+  box-shadow:0 5px 20px rgba(0,0,0,.2);
+  font-size:16px;
+  opacity:0;
+  transition:opacity 0.5s ease;
+  z-index:8;
+}
+</style>
+</head>
+<body>
+
+<div id="menu">
+  <h2>Healthy Restaurant 🥗</h2>
+  <button onclick="startGame()">Mulai</button>
+</div>
+
+<div id="hud">
+  Level: <span id="level">1</span> —
+  Score: <span id="score">0</span> —
+  Energy: <div id="energyBar"><div id="energyFill"></div></div>
+</div>
+
+<div id="joystick">
+  <div id="stick"></div>
+</div>
+
+<div id="eduPopup"></div>
+
+<audio id="bgMusic" loop src="https://assets.mixkit.co/music/preview/mixkit-relaxing-lofi-study-132.mp3"></audio>
+<audio id="collectSFX" src="https://assets.mixkit.co/sfx/preview/mixkit-arcade-game-jump-coin-216.wav"></audio>
+<audio id="badSFX" src="https://assets.mixkit.co/sfx/preview/mixkit-player-losing-or-failing-2042.wav"></audio>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ------------------ VARIABLES ------------------
+let scene,camera,renderer;
+let player;
+let foods=[], fastFoods=[], particles=[];
+let score=0, level=1, energy=100;
+let keys={};
+let vel = new THREE.Vector3(0,0,0);
+let friction = 0.9;
+const accel = 0.06;
+let lastTime=performance.now();
+
+// HUD & UI
+const hud=document.getElementById("hud");
+const scoreUI=document.getElementById("score");
+const levelUI=document.getElementById("level");
+const energyFill=document.getElementById("energyFill");
+const eduPopup=document.getElementById("eduPopup");
+
+// JOYSTICK
+const joystick=document.getElementById("joystick");
+const stick=document.getElementById("stick");
+let joyX=0, joyY=0, joyActive=false, baseRect;
+
+// AUDIO
+const bgMusic=document.getElementById("bgMusic");
+const collectSFX=document.getElementById("collectSFX");
+const badSFX=document.getElementById("badSFX");
+
+// FOOD CATEGORIES
+const foodCategories = [
+  ["🥦","🥕","🥬"],  
+  ["🍞","🍚","🥔"],  
+  ["🍗","🥚","🧀"],  
+  ["🍎","🍌","🍇"],  
+  ["🥑","🥜","🫒"]   
+];
+const eduTexts = [
+  "Sayur kaya vitamin & serat untuk tubuhmu!",
+  "Karbohidrat beri energi untuk beraktivitas!",
+  "Protein bantu ototmu tetap kuat!",
+  "Buah segar penuh antioksidan!",
+  "Lemak sehat penting untuk otak & jantung!"
+];
+
+// ------------------ START GAME ------------------
+function startGame(){
+  document.getElementById("menu").style.display="none";
+  hud.style.display="block";
+  joystick.style.display="flex";
+  bgMusic.play();
+  setupThree();
+  spawnLevel();
+  gameLoop();
+}
+
+// ------------------ THREE.JS SETUP ------------------
+function setupThree(){
+  scene=new THREE.Scene();
+  scene.background=new THREE.Color("#fffde7");
+  camera=new THREE.PerspectiveCamera(75,innerWidth/innerHeight,0.1,1000);
+  camera.position.set(0,5,8);
+  renderer=new THREE.WebGLRenderer({antialias:true});
+  renderer.setSize(innerWidth,innerHeight);
+  document.body.appendChild(renderer.domElement);
+
+  // Lighting
+  const dirLight=new THREE.DirectionalLight(0xffffff,1);
+  dirLight.position.set(5,10,5);
+  scene.add(dirLight);
+  scene.add(new THREE.AmbientLight(0xffffff,.6));
+
+  // Player
+  const body=new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.3,1.2),
+    new THREE.MeshPhongMaterial({color:0x4caf50}));
+  const head=new THREE.Mesh(new THREE.SphereGeometry(0.3),
+    new THREE.MeshPhongMaterial({color:0xffecb3}));
+  head.position.y=0.9;
+  player=new THREE.Group();
+  player.add(body); player.add(head);
+  player.position.y=0.6;
+  scene.add(player);
+
+  // Ground
+  const ground=new THREE.Mesh(
+    new THREE.PlaneGeometry(60,60),
+    new THREE.MeshPhongMaterial({color:0xfff9c4})
+  );
+  ground.rotation.x=-Math.PI/2;
+  ground.receiveShadow=true;
+  scene.add(ground);
+
+  // Tables & Chairs
+  for(let i=-10;i<=10;i+=8){
+    for(let j=-10;j<=10;j+=8){
+      const table=new THREE.Mesh(new THREE.BoxGeometry(2,0.5,2),
+        new THREE.MeshPhongMaterial({color:0x8d6e63}));
+      table.position.set(i,0.25,j); scene.add(table);
+      const chair=new THREE.Mesh(new THREE.BoxGeometry(0.5,1,0.5),
+        new THREE.MeshPhongMaterial({color:0x6d4c41}));
+      chair.position.set(i+1,0.5,j+1); scene.add(chair);
+    }
+  }
+
+  // Controls
+  document.addEventListener("keydown",e=>keys[e.key]=true);
+  document.addEventListener("keyup",e=>keys[e.key]=false);
+
+  joystick.addEventListener("touchstart",e=>{
+    joyActive=true; baseRect=joystick.getBoundingClientRect();
+  });
+  joystick.addEventListener("touchend",()=>{
+    joyActive=false; joyX=0; joyY=0;
+    stick.style.left="0px"; stick.style.top="0px";
+  });
+  joystick.addEventListener("touchmove",e=>{
+    if(!joyActive) return;
+    let t=e.touches[0];
+    let x=t.clientX-(baseRect.left+60);
+    let y=t.clientY-(baseRect.top+60);
+    const max=45;
+    if(Math.hypot(x,y)>max){ let a=Math.atan2(y,x); x=Math.cos(a)*max; y=Math.sin(a)*max; }
+    stick.style.left=x+"px"; stick.style.top=y+"px";
+    joyX=x/max; joyY=y/max;
+  });
+}
+
+// ------------------ LEVEL & FOOD ------------------
+function spawnLevel(){
+  foods.forEach(f=>scene.remove(f.mesh));
+  fastFoods.forEach(f=>scene.remove(f.mesh));
+  foods=[]; fastFoods=[];
+  levelUI.textContent=level;
+
+  showEduPopup(eduTexts[(level-1)%eduTexts.length]);
+
+  const cat = foodCategories[(level-1)%foodCategories.length];
+
+  for(let i=0;i<5;i++){
+    const emoji = cat[Math.floor(Math.random()*cat.length)];
+    const mesh = createEmojiMesh(emoji,0x81c784);
+    mesh.position.set(Math.random()*30-15,0.5,Math.random()*30-15);
+    scene.add(mesh);
+    foods.push({mesh,emoji,bouncePhase:Math.random()*Math.PI*2});
+  }
+
+  const fastFoodEmojis=["🍔","🍟","🍕"];
+  for(let i=0;i<3;i++){
+    const emoji = fastFoodEmojis[Math.floor(Math.random()*fastFoodEmojis.length)];
+    const mesh = createEmojiMesh(emoji,0xff7043);
+    mesh.position.set(Math.random()*30-15,0.5,Math.random()*30-15);
+    scene.add(mesh);
+    fastFoods.push({mesh,emoji,bouncePhase:Math.random()*Math.PI*2});
+  }
+}
+
+function createEmojiMesh(emoji,color){
+  const canvas=document.createElement("canvas"); canvas.width=128; canvas.height=128;
+  const ctx=canvas.getContext("2d");
+  ctx.fillStyle="white"; ctx.fillRect(0,0,128,128);
+  ctx.font="90px serif"; ctx.textAlign="center"; ctx.textBaseline="middle";
+  ctx.fillText(emoji,64,64);
+  const tex=new THREE.CanvasTexture(canvas);
+  const mat=new THREE.MeshPhongMaterial({map:tex, transparent:true, emissive:color, emissiveIntensity:0.4});
+  const geo=new THREE.PlaneGeometry(1,1);
+  const mesh=new THREE.Mesh(geo,mat);
+  mesh.rotation.x=-Math.PI/2;
+  return mesh;
+}
+
+function dist(a,b){return a.position.distanceTo(b.position);}
+
+function showEduPopup(text){
+  eduPopup.innerText=text;
+  eduPopup.style.opacity=1;
+  setTimeout(()=>{eduPopup.style.opacity=0;},3000);
+}
+
+// ------------------ GAME LOOP ------------------
+function gameLoop(){
+  requestAnimationFrame(gameLoop);
+  const now=performance.now();
+  const delta=(now-lastTime)/16.6;
+  lastTime=now;
+
+  // Movement & lean animation
+  if(keys["w"]||keys["ArrowUp"]||joyY<-0.2) vel.z-=accel*delta;
+  if(keys["s"]||keys["ArrowDown"]||joyY>0.2) vel.z+=accel*delta;
+  if(keys["a"]||keys["ArrowLeft"]||joyX<-0.2) vel.x-=accel*delta;
+  if(keys["d"]||keys["ArrowRight"]||joyX>0.2) vel.x+=accel*delta;
+  vel.multiplyScalar(friction);
+  player.position.add(vel);
+  player.rotation.y = Math.atan2(-vel.x, -vel.z) || player.rotation.y;
+
+  // Camera
+  const target=new THREE.Vector3(player.position.x,5,player.position.z+8);
+  camera.position.lerp(target,0.08);
+  camera.lookAt(player.position);
+
+  // Bounce & glow food
+  foods.forEach(f=>{ f.bouncePhase+=0.05; f.mesh.position.y=0.5+Math.sin(f.bouncePhase)*0.2; });
+  fastFoods.forEach(f=>{ f.bouncePhase+=0.05; f.mesh.position.y=0.5+Math.sin(f.bouncePhase)*0.2; });
+
+  // Collect healthy food
+  foods.forEach((f,i)=>{
+    if(dist(player,f.mesh)<1){
+      scene.remove(f.mesh); foods.splice(i,1); score++;
+      scoreUI.textContent=score; collectSFX.currentTime=0; collectSFX.play();
+      if(foods.length==0){ level++; spawnLevel(); }
+    }
+  });
+
+  // Fast food collision
+  fastFoods.forEach((f,i)=>{
+    if(dist(player,f.mesh)<1){
+      scene.remove(f.mesh); fastFoods.splice(i,1);
+      energy-=20; if(energy<0) energy=0;
+      friction=0.5;
+      badSFX.currentTime=0; badSFX.play();
+      document.body.style.filter="brightness(0.7) saturate(1.2)"; 
+      setTimeout(()=>{ friction=0.9; document.body.style.filter=""; },2000);
+      energyFill.style.width=energy+"%";
+    }
+  });
+
+  renderer.render(scene,camera);
+}
+</script>
+</body>
+</html>
